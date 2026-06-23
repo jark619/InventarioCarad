@@ -2,4 +2,4 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base { body { @apply bg-slate-50 text-slate-900; } input, select { @apply rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500; } button { @apply rounded-lg px-4 py-2 font-medium transition; } }
+@layer base { :root { --brand: #2563eb; --canvas: #f8fafc; --ink: #0f172a; } body { @apply bg-slate-50 text-slate-900 antialiased; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } input, select { @apply min-h-12 rounded-xl border border-slate-300 px-3 py-2 outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-100; } button { @apply min-h-11 rounded-xl px-4 py-2 font-medium transition focus:outline-none focus:ring-4 focus:ring-blue-100; } }
