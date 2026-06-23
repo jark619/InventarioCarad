@@ -30,6 +30,10 @@ El usuario crea un producto → el POS lo encuentra por código (cámara o lecto
 - Crea los precios recurrentes de Stripe y despliega las funciones: `supabase functions deploy create-checkout` y `supabase functions deploy stripe-webhook --no-verify-jwt`.
 - Declara en Supabase Secrets: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_BUSINESS`, `STRIPE_WEBHOOK_SECRET` y `APP_URL`. El webhook de Stripe debe apuntar a `https://PROJECT_REF.supabase.co/functions/v1/stripe-webhook` y escuchar `checkout.session.completed` y `customer.subscription.deleted`.
 
+## Usuario demo
+
+Tras crear `jark619@gmail.com` en Supabase Auth, ejecuta `supabase/migrations/003_activate_demo_user.sql` en SQL Editor. Creara la tienda demo y dara el rol Admin con el plan Business activo.
+
 ## Siguiente iteración recomendada
 
 Añadir onboarding de tenant, carga de imágenes a un bucket `product-images`, dashboard de reportes, auditoría de movimientos y cola offline para ventas. Nunca expongas `service_role` en el cliente.

@@ -1,0 +1,3 @@
+'use client';
+import {useEffect,useState}from'react';import{supabase}from'@/lib/supabase/client';
+export default function Profile(){const[n,setN]=useState('');useEffect(()=>{supabase().from('profiles').select('full_name').single().then(({data})=>setN(data?.full_name||''))},[]);return <main className="mx-auto max-w-xl p-5"><h1 className="text-2xl font-bold">Mi perfil</h1><input className="mt-5 w-full" value={n} onChange={e=>setN(e.target.value)} placeholder="Nombre y apellidos"/><button onClick={()=>supabase().rpc('update_my_profile',{p_full_name:n})} className="mt-3 bg-blue-600 text-white">Guardar perfil</button></main>}
