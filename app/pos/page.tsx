@@ -9,7 +9,7 @@ type SaleItem = { product_id: string; quantity: number; unit_price: number };
 export default function Pos() {
   const [cart, setCart] = useState<CartLine[]>([]); const [code, setCode] = useState(''); const [notice, setNotice] = useState('');
   const add = useCallback(async (barcode: string) => {
-    const { data, error } = await supabase().from('products').select('*').eq('barcode', barcode).single() as { data: Product | null; error: Error | null };
+    const { data, error } = await supabase().from('products').select('*').eq('barcode', barcode).eq('is_active', true).single() as { data: Product | null; error: Error | null };
     if (error || !data) return setNotice('Producto no encontrado'); if (data.quantity < 1) return setNotice('Sin existencias');
     setCart(c => { const line = c.find(x => x.id === data.id); return line ? c.map(x => x.id === data.id ? { ...x, units: x.units + 1 } : x) : [...c, { ...data, units: 1 }]; }); setNotice(`${data.name} agregado`);
   }, []);

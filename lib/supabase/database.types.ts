@@ -16,9 +16,9 @@ export type Database = {
         Relationships: [];
       };
       products: {
-        Row: { id: string; tenant_id: string; name: string; barcode: string | null; quantity: number; category: string | null; image_url: string | null; price: number; low_stock_threshold: number; created_at: string; updated_at: string };
-        Insert: { id?: string; tenant_id?: string; name: string; barcode?: string | null; quantity?: number; category?: string | null; image_url?: string | null; price?: number; low_stock_threshold?: number; created_at?: string; updated_at?: string };
-        Update: { id?: string; tenant_id?: string; name?: string; barcode?: string | null; quantity?: number; category?: string | null; image_url?: string | null; price?: number; low_stock_threshold?: number; created_at?: string; updated_at?: string };
+        Row: { id: string; tenant_id: string; name: string; barcode: string | null; quantity: number; category: string | null; image_url: string | null; price: number; low_stock_threshold: number; is_active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; tenant_id?: string; name: string; barcode?: string | null; quantity?: number; category?: string | null; image_url?: string | null; price?: number; low_stock_threshold?: number; is_active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; tenant_id?: string; name?: string; barcode?: string | null; quantity?: number; category?: string | null; image_url?: string | null; price?: number; low_stock_threshold?: number; is_active?: boolean; created_at?: string; updated_at?: string };
         Relationships: [];
       };
       sales: {
