@@ -74,6 +74,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       .from('products')
       .select('id,name')
       .eq('barcode', barcode)
+      .eq('is_active', true)
       .maybeSingle();
 
     if (lookupError) {
@@ -104,6 +105,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       .from('products')
       .select('id,name')
       .eq('barcode', fields.barcode.trim())
+      .eq('is_active', true)
       .maybeSingle();
     if (duplicateError) {
       setSaving(false);
