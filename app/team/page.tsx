@@ -113,7 +113,7 @@ export default function TeamPage() {
 
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-100 p-5"><h2 className="font-semibold">Equipo registrado</h2></div>
-      {loading ? <p className="p-5 text-sm text-slate-500">Cargando…</p> : <div className="overflow-x-auto">
+      {loading ? <p className="p-5 text-sm text-slate-500">Cargando...</p> : <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-600"><tr><th className="p-3">Colaborador</th><th>No. empleado</th><th>Tienda</th><th>Rol</th><th>Estado</th><th className="pr-3 text-right">Acciones</th></tr></thead>
           <tbody>

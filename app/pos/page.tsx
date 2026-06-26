@@ -11,7 +11,15 @@ export default function Pos() {
   const add = useCallback(async (barcode: string) => {
     const { data, error } = await supabase().from('products').select('*').eq('barcode', barcode).eq('is_active', true).single() as { data: Product | null; error: Error | null };
     if (error || !data) return setNotice('Producto no encontrado'); if (data.quantity < 1) return setNotice('Sin existencias');
-    setCart(c => { const line = c.find(x => x.id === data.id); return line ? c.map(x => x.id === data.id ? { ...x, units: x.units + 1 } : x) : [...c, { ...data, units: 1 }]; }); setNotice(`${data.name} agregado`);
+    setCart(c => {
+      const line = c.find(x => x.id === data.id);
+      if (line && line.units >= data.quantity) {
+        setNotice(`Solo hay ${data.quantity} unidades disponibles de ${data.name}`);
+        return c;
+      }
+      setNotice(`${data.name} agregado`);
+      return line ? c.map(x => x.id === data.id ? { ...x, units: x.units + 1 } : x) : [...c, { ...data, units: 1 }];
+    });
   }, []);
   async function checkout() { if (!cart.length) return; const createSale = supabase().rpc as unknown as (name: 'create_sale', args: { p_items: SaleItem[] }) => Promise<{ error: Error | null }>; const { error } = await createSale('create_sale', { p_items: cart.map(x => ({ product_id: x.id, quantity: x.units, unit_price: x.price })) }); if (error) return setNotice(error.message); setCart([]); setNotice('Venta registrada correctamente'); }
   const total = cart.reduce((s, x) => s + x.price * x.units, 0);

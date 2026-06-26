@@ -43,7 +43,7 @@ export default function ProfilePage() {
         <p>Rol: <span className="font-medium text-slate-700">{role || 'No disponible'}</span></p>
         <p>No. empleado: <span className="font-medium text-slate-700">{employeeNumber || 'No disponible'}</span></p>
       </div>
-      <button onClick={saveProfile} disabled={saving} className="mt-4 bg-blue-600 text-white disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar perfil'}</button>
+      <button onClick={saveProfile} disabled={saving} className="mt-4 bg-blue-600 text-white disabled:opacity-50">{saving ? 'Guardando...' : 'Guardar perfil'}</button>
       {message && <p className="mt-3 text-sm text-blue-700">{message}</p>}
     </section>
   </main>;

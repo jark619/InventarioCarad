@@ -44,7 +44,7 @@ export default function PricingPage() {
         <p className="mt-3 text-4xl font-bold">{plan.price}<span className="text-sm font-medium text-slate-500"> MXN / mes</span></p>
         <p className="mt-4 min-h-12 text-slate-600">{plan.description}</p>
         <ul className="mt-5 space-y-3 text-sm text-slate-700">{plan.details.map(detail => <li key={detail} className="flex gap-2"><span className="text-teal-600">✓</span>{detail}</li>)}</ul>
-        <button onClick={() => checkout(plan.id)} disabled={loading !== null} className="mt-7 min-h-12 w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">{loading === plan.id ? 'Abriendo pago…' : 'Elegir plan'}</button>
+        <button onClick={() => checkout(plan.id)} disabled={loading !== null} className="mt-7 min-h-12 w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">{loading === plan.id ? 'Abriendo pago...' : 'Elegir plan'}</button>
       </article>)}
     </section>
     {message && <p className="text-center text-red-600">{message}</p>}
