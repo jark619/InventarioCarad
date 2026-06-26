@@ -11,6 +11,8 @@ const navigation = [
   { href: '/inventory', label: 'Inventario' },
   { href: '/pos', label: 'Abrir caja' },
   { href: '/reports', label: 'Reportes' },
+  { href: '/promotions', label: 'Promociones' },
+  { href: '/stores', label: 'Tiendas' },
   { href: '/team', label: 'Colaboradores' },
   { href: '/profile', label: 'Mi perfil' },
 ];
