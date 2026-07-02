@@ -46,9 +46,9 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'promotions_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }, { foreignKeyName: 'promotions_store_id_fkey'; columns: ['store_id']; isOneToOne: false; referencedRelation: 'stores'; referencedColumns: ['id'] }];
       };
       collaborators: {
-        Row: { id: string; tenant_id: string; store_id: string | null; first_name: string; last_name: string; employee_number: string; role: Database['public']['Enums']['app_role']; active: boolean; created_at: string; updated_at: string };
-        Insert: { id?: string; tenant_id?: string; store_id?: string | null; first_name: string; last_name: string; employee_number: string; role?: Database['public']['Enums']['app_role']; active?: boolean; created_at?: string; updated_at?: string };
-        Update: { id?: string; tenant_id?: string; store_id?: string | null; first_name?: string; last_name?: string; employee_number?: string; role?: Database['public']['Enums']['app_role']; active?: boolean; created_at?: string; updated_at?: string };
+        Row: { id: string; tenant_id: string; user_id: string | null; store_id: string | null; first_name: string; last_name: string; employee_number: string; email: string | null; role: Database['public']['Enums']['app_role']; active: boolean; created_at: string; updated_at: string };
+        Insert: { id?: string; tenant_id?: string; user_id?: string | null; store_id?: string | null; first_name: string; last_name: string; employee_number: string; email?: string | null; role?: Database['public']['Enums']['app_role']; active?: boolean; created_at?: string; updated_at?: string };
+        Update: { id?: string; tenant_id?: string; user_id?: string | null; store_id?: string | null; first_name?: string; last_name?: string; employee_number?: string; email?: string | null; role?: Database['public']['Enums']['app_role']; active?: boolean; created_at?: string; updated_at?: string };
         Relationships: [{ foreignKeyName: 'collaborators_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }, { foreignKeyName: 'collaborators_store_id_fkey'; columns: ['store_id']; isOneToOne: false; referencedRelation: 'stores'; referencedColumns: ['id'] }];
       };
     };
