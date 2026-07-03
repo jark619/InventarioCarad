@@ -40,7 +40,7 @@ export default function TeamPage() {
     setLoading(true);
     const client = supabase();
     const [{ data: collaborators, error }, { data: storeRows }] = await Promise.all([
-      client.from('collaborators').select('id,first_name,last_name,employee_number,email,role,store_id,active').order('created_at', { ascending: false }),
+      client.from('collaborators').select('id,first_name,last_name,employee_number,email,role,store_id,active').eq('active', true).order('created_at', { ascending: false }),
       client.from('stores').select('id,name').order('name'),
     ]);
     if (error) setMessage(error.message);

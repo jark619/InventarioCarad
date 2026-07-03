@@ -1,38 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin, supabaseWithToken } from '@/lib/supabase/server';
-import type { Database } from '@/lib/supabase/database.types';
-
-type Role = Database['public']['Enums']['app_role'];
-
-type CollaboratorPayload = {
-  id?: string;
-  first_name?: string;
-  last_name?: string;
-  employee_number?: string;
-  email?: string;
-  password?: string;
-  role?: Role;
-  store_id?: string | null;
-  active?: boolean;
-};
-
-const roles: Role[] = ['admin', 'inventory', 'cashier'];
-
-function bearerToken(request: Request) {
-  return request.headers.get('authorization')?.replace(/^Bearer\s+/i, '').trim() ?? '';
-}
-
-function cleanPayload(body: CollaboratorPayload) {
-  return {
-    first_name: body.first_name?.trim() ?? '',
-    last_name: body.last_name?.trim() ?? '',
-    employee_number: body.employee_number?.trim() ?? '',
-    email: body.email?.trim().toLowerCase() ?? '',
-    password: body.password ?? '',
-    role: body.role,
-    store_id: body.store_id || null,
-  };
-}
+import {
+  authBanDurationForActiveState,
+  bearerToken,
+  cleanCollaboratorPayload,
+  type CollaboratorPayload,
+  validateCollaboratorCreate,
+  validateCollaboratorUpdate,
+} from '@/lib/collaborators/validation';
 
 async function getAdminContext(request: Request) {
   const token = bearerToken(request);
@@ -67,18 +42,9 @@ export async function POST(request: Request) {
   const context = await getAdminContext(request);
   if ('error' in context) return context.error;
 
-  const payload = cleanPayload(await request.json() as CollaboratorPayload);
-  if (!payload.first_name || !payload.last_name || !payload.employee_number || !payload.email || !payload.password || !payload.role) {
-    return NextResponse.json({ error: 'Captura nombre, apellidos, numero de empleado, correo, password y rol.' }, { status: 400 });
-  }
-
-  if (!roles.includes(payload.role)) {
-    return NextResponse.json({ error: 'Rol invalido.' }, { status: 400 });
-  }
-
-  if (payload.password.length < 6) {
-    return NextResponse.json({ error: 'El password debe tener al menos 6 caracteres.' }, { status: 400 });
-  }
+  const payload = cleanCollaboratorPayload(await request.json() as CollaboratorPayload);
+  const validationError = validateCollaboratorCreate(payload);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const admin = supabaseAdmin();
   const fullName = `${payload.first_name} ${payload.last_name}`.trim();
@@ -148,21 +114,11 @@ export async function PATCH(request: Request) {
   if ('error' in context) return context.error;
 
   const body = await request.json() as CollaboratorPayload;
-  const id = body.id?.trim();
-  const payload = cleanPayload(body);
+  const id = body.id?.trim() ?? '';
+  const payload = cleanCollaboratorPayload(body);
   const active = body.active ?? true;
-
-  if (!id) {
-    return NextResponse.json({ error: 'Colaborador invalido.' }, { status: 400 });
-  }
-
-  if (!payload.first_name || !payload.last_name || !payload.employee_number || !payload.role) {
-    return NextResponse.json({ error: 'Captura nombre, apellidos, numero de empleado y rol.' }, { status: 400 });
-  }
-
-  if (!roles.includes(payload.role)) {
-    return NextResponse.json({ error: 'Rol invalido.' }, { status: 400 });
-  }
+  const validationError = validateCollaboratorUpdate(id, payload);
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 });
 
   const admin = supabaseAdmin();
   const { data: current, error: currentError } = await admin
@@ -212,18 +168,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: profileError.message }, { status: 400 });
     }
 
-    if (payload.password) {
-      if (payload.password.length < 6) {
-        return NextResponse.json({ error: 'El password debe tener al menos 6 caracteres.' }, { status: 400 });
-      }
+    const { error: authError } = await admin.auth.admin.updateUserById(current.user_id, {
+      ...(payload.password ? { password: payload.password } : {}),
+      ban_duration: authBanDurationForActiveState(active),
+    });
 
-      const { error: passwordError } = await admin.auth.admin.updateUserById(current.user_id, {
-        password: payload.password,
-      });
-
-      if (passwordError) {
-        return NextResponse.json({ error: passwordError.message }, { status: 400 });
-      }
+    if (authError) {
+      return NextResponse.json({ error: authError.message }, { status: 400 });
     }
   }
 
