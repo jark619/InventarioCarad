@@ -5,11 +5,15 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { SessionStatus } from '@/components/session-status';
 import { supabase } from '@/lib/supabase/client';
+import type { Database } from '@/lib/supabase/database.types';
 
-const navigation = [
+type Role = Database['public']['Enums']['app_role'];
+type NavigationItem = { href: string; label: string; roles?: Role[] };
+
+const navigation: NavigationItem[] = [
   { href: '/', label: 'Inicio' },
-  { href: '/inventory', label: 'Inventario' },
-  { href: '/pos', label: 'Abrir caja' },
+  { href: '/inventory', label: 'Inventario', roles: ['admin', 'inventory'] },
+  { href: '/pos', label: 'Abrir caja', roles: ['admin', 'cashier'] },
   { href: '/reports', label: 'Reportes' },
   { href: '/promotions', label: 'Promociones' },
   { href: '/stores', label: 'Tiendas' },
@@ -20,6 +24,7 @@ const navigation = [
 export function AppHeader() {
   const pathname = usePathname();
   const [hasPlan, setHasPlan] = useState(false);
+  const [role, setRole] = useState<Role | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -30,6 +35,7 @@ export function AppHeader() {
     const clearAccess = () => {
       requestId += 1;
       setHasPlan(false);
+      setRole(null);
       setMenuOpen(false);
     };
 
@@ -42,9 +48,10 @@ export function AppHeader() {
         return;
       }
 
-      const { data } = await client.from('profiles').select('tenants(subscription_status)').eq('id', user.id).single() as { data: { tenants: { subscription_status?: string } | null } | null };
+      const { data } = await client.from('profiles').select('role,tenants(subscription_status)').eq('id', user.id).single() as { data: { role: Role | null; tenants: { subscription_status?: string } | null } | null };
       if (!active || currentRequest !== requestId) return;
       setHasPlan(data?.tenants?.subscription_status === 'active');
+      setRole(data?.role ?? null);
     };
 
     void loadAccess();
@@ -66,6 +73,11 @@ export function AppHeader() {
   useEffect(() => setMenuOpen(false), [pathname]);
 
   const activeLink = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
+  const visibleNavigation = navigation.filter(item => {
+    if (!role) return false;
+    if (role === 'admin') return true;
+    return item.roles?.includes(role) ?? false;
+  });
 
   return <header className="border-b border-slate-200 bg-white shadow-sm shadow-slate-200/40">
     <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-5 py-3">
@@ -76,7 +88,7 @@ export function AppHeader() {
 
       {hasPlan && <>
         <nav className="hidden items-center gap-1 rounded-xl bg-slate-100 p-1 text-sm font-medium lg:flex" aria-label="Navegación principal">
-          {navigation.map(item => <NavigationLink key={item.href} {...item} active={activeLink(item.href)} />)}
+          {visibleNavigation.map(item => <NavigationLink key={item.href} href={item.href} label={item.label} active={activeLink(item.href)} />)}
         </nav>
         <button type="button" className="border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 lg:hidden" aria-controls="mobile-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
           {menuOpen ? 'Cerrar' : 'Menú'}
@@ -91,7 +103,7 @@ export function AppHeader() {
 
     {hasPlan && menuOpen && <nav id="mobile-navigation" className="border-t border-slate-100 px-5 py-3 lg:hidden" aria-label="Navegación móvil">
       <div className="mx-auto grid max-w-7xl gap-1 sm:grid-cols-2">
-        {navigation.map(item => <NavigationLink key={item.href} {...item} active={activeLink(item.href)} mobile />)}
+        {visibleNavigation.map(item => <NavigationLink key={item.href} href={item.href} label={item.label} active={activeLink(item.href)} mobile />)}
       </div>
     </nav>}
   </header>;
