@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   try {
     const [response, tenantResult] = await Promise.all([
-      mercadoPagoRequest<TerminalList>('/terminals/v1/list?limit=50&offset=0'),
+      mercadoPagoRequest<TerminalList>(context.profile.tenant_id, '/terminals/v1/list?limit=50&offset=0'),
       context.client
         .from('tenants')
         .select('mercado_pago_terminal_id,mercado_pago_terminal_mode,mercado_pago_terminal_synced_at')
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const available = await mercadoPagoRequest<TerminalList>('/terminals/v1/list?limit=50&offset=0');
+    const available = await mercadoPagoRequest<TerminalList>(context.profile.tenant_id, '/terminals/v1/list?limit=50&offset=0');
     const terminal = available.data?.terminals?.find(item => item.id === terminalId);
     if (!terminal) {
       return NextResponse.json({ error: 'La terminal no pertenece a la cuenta configurada.' }, { status: 404 });
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     const setup = terminal.operating_mode === 'PDV'
       ? { terminals: [terminal] }
-      : await mercadoPagoRequest<{ terminals?: MercadoPagoTerminal[] }>('/terminals/v1/setup', {
+      : await mercadoPagoRequest<{ terminals?: MercadoPagoTerminal[] }>(context.profile.tenant_id, '/terminals/v1/setup', {
         method: 'PATCH',
         body: JSON.stringify({ terminals: [{ id: terminalId, operating_mode: 'PDV' }] }),
       });

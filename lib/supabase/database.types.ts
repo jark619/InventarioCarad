@@ -57,6 +57,12 @@ export type Database = {
         Update: { id?: string; tenant_id?: string; created_by?: string; request_id?: string; external_reference?: string; order_id?: string | null; amount?: number; status?: string; status_detail?: string | null; cart?: Json; sale_id?: string | null; created_at?: string; updated_at?: string };
         Relationships: [{ foreignKeyName: 'mercado_pago_orders_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }, { foreignKeyName: 'mercado_pago_orders_sale_id_fkey'; columns: ['sale_id']; isOneToOne: false; referencedRelation: 'sales'; referencedColumns: ['id'] }];
       };
+      mercado_pago_credentials: {
+        Row: { tenant_id: string; access_token_ciphertext: string; token_hint: string; created_by: string | null; created_at: string; updated_at: string };
+        Insert: { tenant_id: string; access_token_ciphertext: string; token_hint: string; created_by?: string | null; created_at?: string; updated_at?: string };
+        Update: { tenant_id?: string; access_token_ciphertext?: string; token_hint?: string; created_by?: string | null; created_at?: string; updated_at?: string };
+        Relationships: [{ foreignKeyName: 'mercado_pago_credentials_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: true; referencedRelation: 'tenants'; referencedColumns: ['id'] }];
+      };
     };
     Views: {
       sales_report: { Row: { tenant_id: string; id: string; name: string; quantity: number; low_stock_threshold: number; units_sold: number }; Relationships: [] };

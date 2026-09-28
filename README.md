@@ -26,12 +26,16 @@ El usuario crea un producto -> el POS lo encuentra por codigo (camara o lectora 
 
 ## Mercado Pago Point
 
-1. Configura `MERCADO_PAGO_ACCESS_TOKEN` solo en el servidor local o en las variables de entorno de Vercel. Nunca uses el prefijo `NEXT_PUBLIC_` para este secreto.
-2. Aplica `supabase/migrations/014_sale_payment_method.sql` y `supabase/migrations/015_mercado_pago_point.sql` en orden.
-3. Vincula el Smart Point 2 a la cuenta, sucursal y caja desde Mercado Pago.
-4. Entra como administrador a `Configuración > Mercado Pago Point`, selecciona la terminal y activa el modo PDV.
+1. Genera una llave aleatoria Base64 de 32 bytes y configúrala como `MERCADO_PAGO_ENCRYPTION_KEY` solo en el servidor local y en Vercel. Nunca uses el prefijo `NEXT_PUBLIC_` para este secreto.
+2. Aplica las migraciones `014_sale_payment_method.sql`, `015_mercado_pago_point.sql` y `016_tenant_mercado_pago_credentials.sql` en orden.
+3. Cada administrador entra a `Configuración > Mercado Pago Point` y guarda el Access Token de su propio negocio. El token se valida y se almacena cifrado; nunca se devuelve al navegador.
+4. Vincula el Smart Point 2 a la cuenta, sucursal y caja desde Mercado Pago, selecciona la terminal y activa el modo PDV.
 
 Los cobros con tarjeta usan Mercado Pago Orders API. La venta y la salida de inventario se registran únicamente cuando la order llega al estado `processed`.
+
+Para una operación SaaS pública, el siguiente paso recomendado es sustituir la captura manual del token por OAuth Authorization Code y almacenar también el refresh token cifrado para su renovación automática.
+
+Conserva respaldada la llave `MERCADO_PAGO_ENCRYPTION_KEY`: cambiarla sin recifrar las credenciales existentes impedirá leer los tokens guardados.
 
 ## Usuario demo
 

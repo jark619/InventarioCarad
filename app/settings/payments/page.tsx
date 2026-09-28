@@ -17,6 +17,12 @@ type ConfiguredTerminal = {
   mercado_pago_terminal_synced_at: string | null;
 };
 
+type CredentialStatus = {
+  configured: boolean;
+  token_hint: string | null;
+  updated_at: string | null;
+};
+
 async function accessToken() {
   const { data } = await supabase().auth.getSession();
   return data.session?.access_token ?? '';
@@ -25,9 +31,12 @@ async function accessToken() {
 export default function PaymentSettingsPage() {
   const [terminals, setTerminals] = useState<Terminal[]>([]);
   const [configured, setConfigured] = useState<ConfiguredTerminal | null>(null);
+  const [credential, setCredential] = useState<CredentialStatus | null>(null);
+  const [credentialInput, setCredentialInput] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingCredential, setSavingCredential] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -41,12 +50,32 @@ export default function PaymentSettingsPage() {
       return;
     }
 
-    const response = await fetch('/api/mercado-pago/terminals', {
+    const credentialResponse = await fetch('/api/mercado-pago/credentials', {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
-    const result = await response.json() as { terminals?: Terminal[]; configured?: ConfiguredTerminal; error?: string };
-    if (!response.ok) {
+    const credentialResult = await credentialResponse.json() as CredentialStatus & { error?: string };
+    if (!credentialResponse.ok) {
+      setError(credentialResult.error ?? 'No fue posible consultar la credencial.');
+      setLoading(false);
+      return;
+    }
+    setCredential(credentialResult);
+
+    if (!credentialResult.configured) {
+      setTerminals([]);
+      setConfigured(null);
+      setSelectedId('');
+      setLoading(false);
+      return;
+    }
+
+    const terminalResponse = await fetch('/api/mercado-pago/terminals', {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+    });
+    const result = await terminalResponse.json() as { terminals?: Terminal[]; configured?: ConfiguredTerminal; error?: string };
+    if (!terminalResponse.ok) {
       setError(result.error ?? 'No fue posible consultar las terminales.');
       setLoading(false);
       return;
@@ -60,6 +89,50 @@ export default function PaymentSettingsPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function saveCredential() {
+    if (!credentialInput.trim() || savingCredential) return;
+    setSavingCredential(true);
+    setError('');
+    setMessage('');
+    const token = await accessToken();
+    const response = await fetch('/api/mercado-pago/credentials', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ accessToken: credentialInput }),
+    });
+    const result = await response.json() as { error?: string };
+    setSavingCredential(false);
+    if (!response.ok) {
+      setError(result.error ?? 'No se pudo guardar la credencial.');
+      return;
+    }
+    setCredentialInput('');
+    setMessage('Access Token validado y guardado de forma cifrada para este negocio. Selecciona nuevamente la terminal.');
+    await load();
+  }
+
+  async function removeCredential() {
+    if (!credential?.configured || savingCredential || !window.confirm('¿Desconectar Mercado Pago de este negocio? La terminal configurada también se desvinculará del sistema.')) return;
+    setSavingCredential(true);
+    setError('');
+    const token = await accessToken();
+    const response = await fetch('/api/mercado-pago/credentials', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await response.json() as { error?: string };
+    setSavingCredential(false);
+    if (!response.ok) {
+      setError(result.error ?? 'No se pudo eliminar la credencial.');
+      return;
+    }
+    setMessage('Mercado Pago fue desconectado de este negocio.');
+    await load();
+  }
 
   async function synchronize() {
     if (!selectedId || saving) return;
@@ -95,8 +168,27 @@ export default function PaymentSettingsPage() {
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          <h2 className="font-semibold text-slate-900">Credencial del negocio</h2>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Cada cliente usa su propia cuenta. El token se valida en Mercado Pago, se cifra antes de guardarlo y nunca vuelve a mostrarse.</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${credential?.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{credential?.configured ? `Guardada · •••${credential.token_hint}` : 'Sin configurar'}</span>
+      </div>
+      <label className="mt-4 block text-sm font-medium text-slate-700" htmlFor="mercado-pago-token">Access Token de Mercado Pago</label>
+      <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <input id="mercado-pago-token" type="password" value={credentialInput} onChange={event => setCredentialInput(event.target.value)} autoComplete="new-password" placeholder={credential?.configured ? 'Pega un token nuevo para reemplazarlo' : 'APP_USR-...'} className="min-w-0 w-full font-mono" />
+        <button type="button" onClick={saveCredential} disabled={!credentialInput.trim() || savingCredential} className="bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{savingCredential ? 'Validando...' : credential?.configured ? 'Reemplazar token' : 'Guardar token'}</button>
+      </div>
+      {credential?.configured && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+        <span>Actualizado {credential.updated_at ? new Date(credential.updated_at).toLocaleString('es-MX') : 'recientemente'}</span>
+        <button type="button" onClick={removeCredential} disabled={savingCredential} className="min-h-0 bg-transparent px-2 py-1 text-rose-700 hover:bg-rose-50 disabled:opacity-50">Desconectar cuenta</button>
+      </div>}
+    </section>
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
           <h2 className="font-semibold text-slate-900">Estado de la conexión</h2>
-          <p className="mt-1 text-sm text-slate-500">El Access Token se configura de forma segura en el servidor y nunca se muestra aquí.</p>
+          <p className="mt-1 text-sm text-slate-500">La terminal activa pertenece exclusivamente a la cuenta configurada para este negocio.</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-semibold ${configured?.mercado_pago_terminal_mode === 'PDV' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
           {configured?.mercado_pago_terminal_mode === 'PDV' ? 'Conectada · PDV' : 'Pendiente'}
@@ -112,7 +204,7 @@ export default function PaymentSettingsPage() {
       <h2 className="font-semibold text-slate-900">Seleccionar Smart Point 2</h2>
       <p className="mt-1 text-sm text-slate-500">La terminal debe estar encendida y vinculada previamente a la cuenta de Mercado Pago.</p>
 
-      {loading ? <div className="mt-4 h-24 animate-pulse rounded-xl bg-slate-100" /> : terminals.length ? <div className="mt-4 grid gap-3">
+      {loading ? <div className="mt-4 h-24 animate-pulse rounded-xl bg-slate-100" /> : !credential?.configured ? <p className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">Guarda primero el Access Token de este negocio para consultar sus terminales.</p> : terminals.length ? <div className="mt-4 grid gap-3">
         {terminals.map(terminal => <label key={terminal.id} className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition focus-within:ring-2 focus-within:ring-blue-500 ${selectedId === terminal.id ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-300'}`}>
           <input type="radio" name="terminal" value={terminal.id} checked={selectedId === terminal.id} onChange={() => setSelectedId(terminal.id)} className="mt-1 h-4 w-4" />
           <span className="min-w-0 flex-1">
@@ -131,10 +223,10 @@ export default function PaymentSettingsPage() {
     <section className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white">
       <h2 className="font-semibold">Antes de sincronizar</h2>
       <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-300">
-        <li>Configura <code className="rounded bg-white/10 px-1.5 py-0.5 text-white">MERCADO_PAGO_ACCESS_TOKEN</code> en Vercel.</li>
-        <li>Enciende el Smart Point 2 e inicia sesión con la cuenta que recibirá los pagos.</li>
-        <li>Asocia la terminal a una sucursal y caja desde la app de Mercado Pago.</li>
-        <li>Regresa aquí, actualiza la lista y activa el modo PDV.</li>
+        <li>El servidor debe tener una llave global <code className="rounded bg-white/10 px-1.5 py-0.5 text-white">MERCADO_PAGO_ENCRYPTION_KEY</code> para cifrar credenciales.</li>
+        <li>Guarda arriba el Access Token correspondiente a este negocio.</li>
+        <li>Enciende el Smart Point 2 y asócialo a una sucursal y caja desde Mercado Pago.</li>
+        <li>Actualiza la lista y activa el modo PDV.</li>
       </ol>
     </section>
 

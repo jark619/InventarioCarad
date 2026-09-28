@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const order = await mercadoPagoRequest<MercadoPagoOrder>('/v1/orders', {
+    const order = await mercadoPagoRequest<MercadoPagoOrder>(context.profile.tenant_id, '/v1/orders', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': requestId },
       body: JSON.stringify({
@@ -168,7 +168,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const order = await mercadoPagoRequest<MercadoPagoOrder>(`/v1/orders/${encodeURIComponent(orderId)}`);
+    const order = await mercadoPagoRequest<MercadoPagoOrder>(context.profile.tenant_id, `/v1/orders/${encodeURIComponent(orderId)}`);
     let saleId = stored.sale_id;
 
     if (order.status === 'processed' && !saleId) {
@@ -240,7 +240,7 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    const order = await mercadoPagoRequest<MercadoPagoOrder>(`/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
+    const order = await mercadoPagoRequest<MercadoPagoOrder>(context.profile.tenant_id, `/v1/orders/${encodeURIComponent(orderId)}/cancel`, {
       method: 'POST',
       headers: { 'X-Idempotency-Key': crypto.randomUUID() },
     });
