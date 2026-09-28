@@ -1,12 +1,13 @@
 'use client';
 
-import { FormEvent, useCallback, useState } from 'react';
+import { FormEvent, useCallback, useRef, useState } from 'react';
 import { BarcodeScanner } from '@/components/barcode-scanner';
 import { supabase } from '@/lib/supabase/client';
 import type { Json } from '@/lib/supabase/database.types';
 import type { CartLine, Product } from '@/lib/types';
 
 const SALE_TIMEOUT_MS = 20_000;
+const CARD_POLL_ATTEMPTS = 90;
 type PaymentMethod = 'cash' | 'card';
 
 export default function Pos() {
@@ -18,8 +19,14 @@ export default function Pos() {
   const [searching, setSearching] = useState(false);
   const [paying, setPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [pointOrderId, setPointOrderId] = useState('');
+  const cardRequestId = useRef('');
 
   const addProduct = useCallback((product: Product) => {
+    if (paying) {
+      setNotice('Espera a que termine el cobro actual antes de modificar el ticket.');
+      return;
+    }
     if (product.quantity < 1) {
       setNotice(`${product.name} no tiene existencias.`);
       return;
@@ -35,7 +42,7 @@ export default function Pos() {
         ? current.map(item => item.id === product.id ? { ...item, units: item.units + 1 } : item)
         : [...current, { ...product, units: 1 }];
     });
-  }, []);
+  }, [paying]);
 
   const addByBarcode = useCallback(async (rawBarcode: string) => {
     const barcode = rawBarcode.trim();
@@ -71,6 +78,7 @@ export default function Pos() {
   }
 
   function changeUnits(product: CartLine, amount: number) {
+    if (paying) return;
     setCart(current => {
       const line = current.find(item => item.id === product.id);
       if (!line) return current;
@@ -84,7 +92,7 @@ export default function Pos() {
     });
   }
 
-  async function checkout() {
+  async function checkoutCash() {
     if (!cart.length || paying) return;
     setPaying(true);
     setNotice('Registrando venta...');
@@ -110,7 +118,8 @@ export default function Pos() {
 
         const saleResult = await client.rpc('create_sale', {
           p_items: items,
-          p_payment_method: paymentMethod,
+          p_payment_method: 'cash',
+          p_payment_reference: null,
         });
         if (saleResult.error) return saleResult;
 
@@ -160,6 +169,127 @@ export default function Pos() {
     }
   }
 
+  async function checkoutCard() {
+    if (!cart.length || paying) return;
+    setPaying(true);
+    setPointOrderId('');
+    setNotice('Enviando cobro al Smart Point 2...');
+    let allowNewAttempt = false;
+
+    try {
+      const client = supabase();
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (sessionError || !accessToken) throw new Error('Tu sesión venció. Inicia sesión nuevamente antes de cobrar.');
+
+      cardRequestId.current ||= crypto.randomUUID();
+      const createResponse = await fetch('/api/mercado-pago/orders', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requestId: cardRequestId.current,
+          cart: cart.map(item => ({ productId: item.id, quantity: item.units })),
+        }),
+      });
+      const created = await createResponse.json() as { order_id?: string; error?: string };
+      if (!createResponse.ok || !created.order_id) {
+        throw new Error(created.error ?? 'No se pudo iniciar el cobro en la terminal.');
+      }
+
+      setPointOrderId(created.order_id);
+      setNotice('Cobro enviado. Sigue las instrucciones en el Smart Point 2.');
+
+      for (let attempt = 0; attempt < CARD_POLL_ATTEMPTS; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 2_000));
+        const statusResponse = await fetch(`/api/mercado-pago/orders?orderId=${encodeURIComponent(created.order_id)}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: 'no-store',
+        });
+        const status = await statusResponse.json() as {
+          status?: string;
+          status_detail?: string;
+          sale_id?: string;
+          error?: string;
+        };
+
+        if (!statusResponse.ok) throw new Error(status.error ?? 'No se pudo verificar el cobro.');
+        if (status.status === 'processed' && status.sale_id) {
+          setCart([]);
+          setResults([]);
+          setPaymentMethod('cash');
+          setPointOrderId('');
+          cardRequestId.current = '';
+          setNotice(`Pago aprobado y venta ${status.sale_id.slice(0, 8)} registrada correctamente.`);
+          return;
+        }
+        if (status.status === 'at_terminal') {
+          setNotice('La terminal recibió el cobro. Esperando la tarjeta y la confirmación del cliente...');
+          continue;
+        }
+        if (status.status === 'failed') {
+          allowNewAttempt = true;
+          throw new Error('El pago fue rechazado. Puedes intentarlo de nuevo o elegir Efectivo.');
+        }
+        if (status.status === 'canceled') {
+          allowNewAttempt = true;
+          throw new Error('El cobro fue cancelado en la terminal.');
+        }
+        if (status.status === 'expired') {
+          allowNewAttempt = true;
+          throw new Error('El cobro expiró antes de completarse.');
+        }
+        if (status.status === 'action_required') throw new Error('Revisa el Smart Point 2 para confirmar si el pago fue aprobado o rechazado antes de continuar.');
+      }
+
+      throw new Error('El cobro sigue pendiente. Revisa la terminal y no repitas el pago hasta confirmar el resultado.');
+    } catch (error) {
+      if (allowNewAttempt) {
+        cardRequestId.current = '';
+        setPointOrderId('');
+      }
+      setNotice(error instanceof Error ? error.message : 'No se pudo completar el cobro con tarjeta.');
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  async function cancelPointOrder() {
+    if (!pointOrderId || paying) return;
+    setPaying(true);
+    setNotice('Cancelando cobro pendiente...');
+    try {
+      const { data } = await supabase().auth.getSession();
+      const accessToken = data.session?.access_token;
+      if (!accessToken) throw new Error('Tu sesión venció.');
+      const response = await fetch(`/api/mercado-pago/orders?orderId=${encodeURIComponent(pointOrderId)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const result = await response.json() as { status?: string; error?: string };
+      if (!response.ok || result.status !== 'canceled') {
+        throw new Error(result.error ?? 'Cancela el cobro directamente en la terminal.');
+      }
+      cardRequestId.current = '';
+      setPointOrderId('');
+      setNotice('Cobro cancelado. Ya puedes elegir otro método de pago.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'No se pudo cancelar el cobro.');
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  function checkout() {
+    if (paymentMethod === 'card') {
+      void checkoutCard();
+      return;
+    }
+    void checkoutCash();
+  }
+
   const total = cart.reduce((sum, item) => sum + item.price * item.units, 0);
 
   return <main className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-5 sm:px-5 lg:grid-cols-[1.1fr_.9fr] lg:py-7">
@@ -186,9 +316,9 @@ export default function Pos() {
     </section>
     <section className="h-fit min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-4">
       <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Ticket</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{cart.reduce((sum, item) => sum + item.units, 0)} artículos</span></div>
-      {cart.length ? <div className="mt-3 divide-y divide-slate-100">{cart.map(item => <article className="py-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="text-xs text-slate-500">${Number(item.price).toFixed(2)} cada uno</p></div><strong className="shrink-0">${(item.units * item.price).toFixed(2)}</strong></div><div className="mt-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><button type="button" onClick={() => changeUnits(item, -1)} aria-label={`Quitar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-slate-100 p-0 text-lg">−</button><span className="min-w-8 text-center font-semibold">{item.units}</span><button type="button" onClick={() => changeUnits(item, 1)} aria-label={`Agregar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-blue-100 p-0 text-lg text-blue-700">+</button></div><button type="button" onClick={() => setCart(current => current.filter(product => product.id !== item.id))} className="min-h-10 bg-transparent px-2 text-sm text-rose-700">Quitar</button></div></article>)}</div> : <p className="mt-4 rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">Escanea o busca productos para comenzar la venta.</p>}
+      {cart.length ? <div className="mt-3 divide-y divide-slate-100">{cart.map(item => <article className="py-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="text-xs text-slate-500">${Number(item.price).toFixed(2)} cada uno</p></div><strong className="shrink-0">${(item.units * item.price).toFixed(2)}</strong></div><div className="mt-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><button type="button" onClick={() => changeUnits(item, -1)} disabled={paying} aria-label={`Quitar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-slate-100 p-0 text-lg disabled:opacity-50">−</button><span className="min-w-8 text-center font-semibold">{item.units}</span><button type="button" onClick={() => changeUnits(item, 1)} disabled={paying} aria-label={`Agregar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-blue-100 p-0 text-lg text-blue-700 disabled:opacity-50">+</button></div><button type="button" onClick={() => setCart(current => current.filter(product => product.id !== item.id))} disabled={paying} className="min-h-10 bg-transparent px-2 text-sm text-rose-700 disabled:opacity-50">Quitar</button></div></article>)}</div> : <p className="mt-4 rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">Escanea o busca productos para comenzar la venta.</p>}
       <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xl font-bold"><span>Total</span><span>${total.toFixed(2)}</span></div>
-      <fieldset className="mt-5" disabled={paying}>
+      <fieldset className="mt-5" disabled={paying || Boolean(pointOrderId)}>
         <legend className="mb-2 text-sm font-semibold text-slate-700">Método de pago</legend>
         <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1" role="group" aria-label="Método de pago">
           {([
@@ -200,7 +330,12 @@ export default function Pos() {
           </label>)}
         </div>
       </fieldset>
-      <button type="button" onClick={checkout} disabled={!cart.length || paying} className="mt-4 min-h-14 w-full bg-emerald-600 text-lg text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">{paying ? 'Registrando pago...' : 'Pagar'}</button>
+      {paymentMethod === 'card' && <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+        <p className="font-medium">El cobro se enviará al Smart Point 2 configurado.</p>
+        <p className="mt-1 text-xs text-sky-700">{pointOrderId ? `Order: ${pointOrderId}` : 'La venta se registrará solo después de que Mercado Pago confirme el pago.'}</p>
+        {pointOrderId && !paying && <button type="button" onClick={cancelPointOrder} className="mt-3 min-h-10 border border-sky-300 bg-white px-3 text-sm text-sky-800 hover:bg-sky-100">Cancelar cobro pendiente</button>}
+      </div>}
+      <button type="button" onClick={checkout} disabled={!cart.length || paying} className={`mt-4 min-h-14 w-full text-lg text-white disabled:cursor-not-allowed disabled:opacity-50 ${paymentMethod === 'card' ? 'bg-sky-500 hover:bg-sky-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{paying ? (paymentMethod === 'card' ? 'Esperando terminal...' : 'Registrando pago...') : (paymentMethod === 'card' ? (pointOrderId ? 'Revisar cobro pendiente' : 'Cobrar en terminal') : 'Registrar pago')}</button>
     </section>
   </main>;
 }

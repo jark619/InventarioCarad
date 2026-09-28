@@ -10,9 +10,9 @@ export type Database = {
         Relationships: [{ foreignKeyName: 'profiles_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }];
       };
       tenants: {
-        Row: { id: string; name: string; logo_url: string | null; created_at: string; plan: string; subscription_status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; store_limit: number };
-        Insert: { id?: string; name: string; logo_url?: string | null; created_at?: string; plan?: string; subscription_status?: string; stripe_customer_id?: string | null; stripe_subscription_id?: string | null; store_limit?: number };
-        Update: { id?: string; name?: string; logo_url?: string | null; created_at?: string; plan?: string; subscription_status?: string; stripe_customer_id?: string | null; stripe_subscription_id?: string | null; store_limit?: number };
+        Row: { id: string; name: string; logo_url: string | null; created_at: string; plan: string; subscription_status: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; mercado_pago_terminal_id: string | null; mercado_pago_terminal_mode: string | null; mercado_pago_terminal_synced_at: string | null; store_limit: number };
+        Insert: { id?: string; name: string; logo_url?: string | null; created_at?: string; plan?: string; subscription_status?: string; stripe_customer_id?: string | null; stripe_subscription_id?: string | null; mercado_pago_terminal_id?: string | null; mercado_pago_terminal_mode?: string | null; mercado_pago_terminal_synced_at?: string | null; store_limit?: number };
+        Update: { id?: string; name?: string; logo_url?: string | null; created_at?: string; plan?: string; subscription_status?: string; stripe_customer_id?: string | null; stripe_subscription_id?: string | null; mercado_pago_terminal_id?: string | null; mercado_pago_terminal_mode?: string | null; mercado_pago_terminal_synced_at?: string | null; store_limit?: number };
         Relationships: [];
       };
       products: {
@@ -22,9 +22,9 @@ export type Database = {
         Relationships: [];
       };
       sales: {
-        Row: { id: string; tenant_id: string; cashier_id: string; total: number; payment_method: Database['public']['Enums']['payment_method']; created_at: string };
-        Insert: { id?: string; tenant_id: string; cashier_id: string; total: number; payment_method?: Database['public']['Enums']['payment_method']; created_at?: string };
-        Update: { id?: string; tenant_id?: string; cashier_id?: string; total?: number; payment_method?: Database['public']['Enums']['payment_method']; created_at?: string };
+        Row: { id: string; tenant_id: string; cashier_id: string; total: number; payment_method: Database['public']['Enums']['payment_method']; payment_reference: string | null; created_at: string };
+        Insert: { id?: string; tenant_id: string; cashier_id: string; total: number; payment_method?: Database['public']['Enums']['payment_method']; payment_reference?: string | null; created_at?: string };
+        Update: { id?: string; tenant_id?: string; cashier_id?: string; total?: number; payment_method?: Database['public']['Enums']['payment_method']; payment_reference?: string | null; created_at?: string };
         Relationships: [];
       };
       sale_items: {
@@ -51,12 +51,18 @@ export type Database = {
         Update: { id?: string; tenant_id?: string; user_id?: string | null; store_id?: string | null; first_name?: string; last_name?: string; employee_number?: string; email?: string | null; role?: Database['public']['Enums']['app_role']; active?: boolean; created_at?: string; updated_at?: string };
         Relationships: [{ foreignKeyName: 'collaborators_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }, { foreignKeyName: 'collaborators_store_id_fkey'; columns: ['store_id']; isOneToOne: false; referencedRelation: 'stores'; referencedColumns: ['id'] }];
       };
+      mercado_pago_orders: {
+        Row: { id: string; tenant_id: string; created_by: string; request_id: string; external_reference: string; order_id: string | null; amount: number; status: string; status_detail: string | null; cart: Json; sale_id: string | null; created_at: string; updated_at: string };
+        Insert: { id?: string; tenant_id: string; created_by: string; request_id: string; external_reference: string; order_id?: string | null; amount: number; status: string; status_detail?: string | null; cart: Json; sale_id?: string | null; created_at?: string; updated_at?: string };
+        Update: { id?: string; tenant_id?: string; created_by?: string; request_id?: string; external_reference?: string; order_id?: string | null; amount?: number; status?: string; status_detail?: string | null; cart?: Json; sale_id?: string | null; created_at?: string; updated_at?: string };
+        Relationships: [{ foreignKeyName: 'mercado_pago_orders_tenant_id_fkey'; columns: ['tenant_id']; isOneToOne: false; referencedRelation: 'tenants'; referencedColumns: ['id'] }, { foreignKeyName: 'mercado_pago_orders_sale_id_fkey'; columns: ['sale_id']; isOneToOne: false; referencedRelation: 'sales'; referencedColumns: ['id'] }];
+      };
     };
     Views: {
       sales_report: { Row: { tenant_id: string; id: string; name: string; quantity: number; low_stock_threshold: number; units_sold: number }; Relationships: [] };
     };
     Functions: {
-      create_sale: { Args: { p_items: Json; p_payment_method: Database['public']['Enums']['payment_method'] }; Returns: string };
+      create_sale: { Args: { p_items: Json; p_payment_method: Database['public']['Enums']['payment_method']; p_payment_reference: string | null }; Returns: string };
       create_store: { Args: { p_name: string }; Returns: string };
       update_my_profile: { Args: { p_full_name: string }; Returns: undefined };
       admin_update_collaborator: { Args: { p_id: string; p_full_name: string; p_role: Database['public']['Enums']['app_role'] }; Returns: undefined };

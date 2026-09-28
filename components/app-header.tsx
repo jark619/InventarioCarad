@@ -18,6 +18,7 @@ const navigation: NavigationItem[] = [
   { href: '/promotions', label: 'Promociones', roles: ['admin'] },
   { href: '/stores', label: 'Tiendas', roles: ['admin'] },
   { href: '/team', label: 'Colaboradores', roles: ['admin'] },
+  { href: '/settings/payments', label: 'Configuración', roles: ['admin'] },
   { href: '/profile', label: 'Mi perfil', roles: ['admin', 'inventory', 'cashier'] },
 ];
 

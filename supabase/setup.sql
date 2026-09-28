@@ -18,6 +18,9 @@ create table public.tenants (
   subscription_status text not null default 'inactive',
   stripe_customer_id text unique,
   stripe_subscription_id text unique,
+  mercado_pago_terminal_id text,
+  mercado_pago_terminal_mode text,
+  mercado_pago_terminal_synced_at timestamptz,
   store_limit integer not null default 1 check (store_limit > 0),
   created_at timestamptz not null default now()
 );
@@ -55,6 +58,7 @@ create table public.sales (
   cashier_id uuid not null references auth.users(id),
   total numeric(12,2) not null check (total >= 0),
   payment_method public.payment_method not null default 'cash',
+  payment_reference text,
   created_at timestamptz not null default now()
 );
 
@@ -120,6 +124,23 @@ create table public.collaborators (
   unique (tenant_id, employee_number)
 );
 
+create table public.mercado_pago_orders (
+  id uuid primary key default uuid_generate_v4(),
+  tenant_id uuid not null references public.tenants(id) on delete cascade,
+  created_by uuid not null references auth.users(id),
+  request_id uuid not null,
+  external_reference text not null unique,
+  order_id text unique,
+  amount numeric(12,2) not null check (amount > 0),
+  status text not null,
+  status_detail text,
+  cart jsonb not null,
+  sale_id uuid references public.sales(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, request_id)
+);
+
 create index products_tenant_barcode_idx on public.products (tenant_id, barcode);
 create index products_tenant_active_name_idx on public.products (tenant_id, is_active, name);
 create unique index products_tenant_barcode_active_key
@@ -127,6 +148,11 @@ create unique index products_tenant_barcode_active_key
   where is_active and barcode is not null;
 create index products_tenant_active_barcode_idx on public.products (tenant_id, is_active, barcode);
 create index sales_tenant_created_idx on public.sales (tenant_id, created_at desc);
+create unique index sales_tenant_payment_reference_key
+  on public.sales (tenant_id, payment_reference)
+  where payment_reference is not null;
+create index mercado_pago_orders_tenant_created_idx
+  on public.mercado_pago_orders (tenant_id, created_at desc);
 create index collaborators_tenant_idx on public.collaborators (tenant_id);
 create index collaborators_store_idx on public.collaborators (store_id);
 create unique index collaborators_tenant_email_key
@@ -328,6 +354,47 @@ begin
 end;
 $$;
 
+create or replace function public.create_sale(
+  p_items jsonb,
+  p_payment_method public.payment_method,
+  p_payment_reference text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+set lock_timeout = '5s'
+set statement_timeout = '15s'
+as $$
+declare
+  v_tenant uuid := public.current_tenant_id();
+  v_reference text := nullif(trim(p_payment_reference), '');
+  v_sale uuid;
+begin
+  if p_payment_method = 'card' and v_reference is null then
+    raise exception 'La referencia del pago con tarjeta es obligatoria';
+  end if;
+
+  if v_reference is not null then
+    select id into v_sale
+      from public.sales
+      where tenant_id = v_tenant and payment_reference = v_reference;
+    if found then return v_sale; end if;
+  end if;
+
+  v_sale := public.create_sale(p_items, p_payment_method);
+
+  if v_reference is not null then
+    update public.sales
+      set payment_reference = v_reference
+      where id = v_sale and tenant_id = v_tenant and cashier_id = auth.uid();
+    if not found then raise exception 'No se pudo asignar la referencia del pago'; end if;
+  end if;
+
+  return v_sale;
+end;
+$$;
+
 create or replace function public.create_store(p_name text)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -383,6 +450,7 @@ $$;
 
 grant execute on function public.create_sale(jsonb) to authenticated;
 grant execute on function public.create_sale(jsonb, public.payment_method) to authenticated;
+grant execute on function public.create_sale(jsonb, public.payment_method, text) to authenticated;
 grant execute on function public.create_store(text) to authenticated;
 grant execute on function public.update_my_profile(text) to authenticated;
 grant execute on function public.admin_update_collaborator(uuid, text, public.app_role) to authenticated;
@@ -397,6 +465,7 @@ alter table public.stores enable row level security;
 alter table public.store_members enable row level security;
 alter table public.promotions enable row level security;
 alter table public.collaborators enable row level security;
+alter table public.mercado_pago_orders enable row level security;
 
 create policy "read own tenant" on public.tenants for select
   using (id = public.current_tenant_id());
@@ -449,6 +518,9 @@ create policy "admin manages collaborators" on public.collaborators for all
     and public.has_role(array['admin']::public.app_role[]))
   with check (tenant_id = public.current_tenant_id()
     and public.has_role(array['admin']::public.app_role[]));
+create policy "cashiers read tenant point orders" on public.mercado_pago_orders for select
+  using (tenant_id = public.current_tenant_id()
+    and public.has_role(array['admin','cashier']::public.app_role[]));
 
 insert into storage.buckets (id, name, public)
 values ('product-images', 'product-images', true)

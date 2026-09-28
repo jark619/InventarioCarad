@@ -24,6 +24,15 @@ El usuario crea un producto -> el POS lo encuentra por codigo (camara o lectora 
 - Crea los precios recurrentes de Stripe y despliega las funciones: `supabase functions deploy create-checkout` y `supabase functions deploy stripe-webhook --no-verify-jwt`.
 - Declara en Supabase Secrets: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_STARTER`, `STRIPE_PRICE_BUSINESS`, `STRIPE_WEBHOOK_SECRET` y `APP_URL`. El webhook de Stripe debe apuntar a `https://PROJECT_REF.supabase.co/functions/v1/stripe-webhook` y escuchar `checkout.session.completed` y `customer.subscription.deleted`.
 
+## Mercado Pago Point
+
+1. Configura `MERCADO_PAGO_ACCESS_TOKEN` solo en el servidor local o en las variables de entorno de Vercel. Nunca uses el prefijo `NEXT_PUBLIC_` para este secreto.
+2. Aplica `supabase/migrations/014_sale_payment_method.sql` y `supabase/migrations/015_mercado_pago_point.sql` en orden.
+3. Vincula el Smart Point 2 a la cuenta, sucursal y caja desde Mercado Pago.
+4. Entra como administrador a `Configuración > Mercado Pago Point`, selecciona la terminal y activa el modo PDV.
+
+Los cobros con tarjeta usan Mercado Pago Orders API. La venta y la salida de inventario se registran únicamente cuando la order llega al estado `processed`.
+
 ## Usuario demo
 
 La forma mas directa es ejecutar `supabase/create_demo_user.sql` en Supabase SQL Editor despues de `supabase/setup.sql`. El archivo crea la cuenta Auth, la identidad Email/Password y el negocio de demostracion, y al final muestra una consulta de verificacion.
