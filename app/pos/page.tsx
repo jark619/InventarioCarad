@@ -87,6 +87,7 @@ export default function Pos() {
     setPaying(true);
     setNotice('Registrando venta...');
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let saleRegistered = false;
 
     try {
       const client = supabase();
@@ -105,18 +106,40 @@ export default function Pos() {
           unit_price: item.price,
         })) as unknown as Json;
 
-        return client.rpc('create_sale', { p_items: items });
+        const saleResult = await client.rpc('create_sale', { p_items: items });
+        if (saleResult.error) return saleResult;
+
+        saleRegistered = true;
+        const saleId = saleResult.data;
+        setCart([]);
+        setResults([]);
+        setNotice('Venta registrada. Verificando salida de inventario...');
+
+        const [savedSale, updatedProducts] = await Promise.all([
+          client.from('sales').select('id,total').eq('id', saleId).single(),
+          client.from('products').select('id,quantity').in('id', cart.map(item => item.id)),
+        ]);
+        if (savedSale.error || !savedSale.data) throw new Error('SALE_NOT_VERIFIED');
+        if (updatedProducts.error) throw new Error('STOCK_NOT_VERIFIED');
+
+        const quantities = new Map((updatedProducts.data ?? []).map(product => [product.id, product.quantity]));
+        const inventoryUpdated = cart.every(item => {
+          const currentQuantity = quantities.get(item.id);
+          return currentQuantity !== undefined && currentQuantity <= item.quantity - item.units;
+        });
+        if (!inventoryUpdated) throw new Error('STOCK_NOT_UPDATED');
+
+        return saleResult;
       };
-      const { error } = await Promise.race([saleOperation(), timeout]);
+      const { data: saleId, error } = await Promise.race([saleOperation(), timeout]);
 
       if (error) throw new Error(error.message);
-
-      setCart([]);
-      setResults([]);
-      setNotice('Venta registrada correctamente.');
+      setNotice(`Venta ${String(saleId).slice(0, 8)} registrada e inventario actualizado correctamente.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error desconocido';
-      if (message === 'SALE_TIMEOUT') {
+      if (saleRegistered) {
+        setNotice('La venta fue registrada, pero no se pudo comprobar la salida de inventario. Revisa Inventario y Reportes antes de repetir el cobro.');
+      } else if (message === 'SALE_TIMEOUT') {
         setNotice('Supabase tardó demasiado en responder. Revisa Reportes antes de intentar nuevamente para evitar duplicar la venta.');
       } else if (message.toLowerCase().includes('fetch')) {
         setNotice('No fue posible conectar con Supabase. Revisa tu conexión y las variables de entorno de Vercel.');
