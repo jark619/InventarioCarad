@@ -13,6 +13,7 @@ type BarcodeDetectorConstructor = new (options?: { formats?: string[] }) => {
 export function BarcodeScanner({ onDetected }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const lastDetected = useRef('');
+  const missedDetections = useRef(0);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -50,6 +51,12 @@ export function BarcodeScanner({ onDetected }: Props) {
           try {
             const codes = await detector.detect(video.current);
             const barcode = codes[0]?.rawValue?.trim();
+            if (!barcode) {
+              missedDetections.current += 1;
+              if (missedDetections.current >= 2) lastDetected.current = '';
+              return;
+            }
+            missedDetections.current = 0;
             if (barcode && barcode !== lastDetected.current) {
               lastDetected.current = barcode;
               onDetected(barcode);
