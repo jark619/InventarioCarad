@@ -11,14 +11,14 @@ type Role = Database['public']['Enums']['app_role'];
 type NavigationItem = { href: string; label: string; roles?: Role[] };
 
 const navigation: NavigationItem[] = [
-  { href: '/', label: 'Inicio' },
+  { href: '/', label: 'Inicio', roles: ['admin', 'inventory', 'cashier'] },
   { href: '/inventory', label: 'Inventario', roles: ['admin', 'inventory'] },
   { href: '/pos', label: 'Abrir caja', roles: ['admin', 'cashier'] },
-  { href: '/reports', label: 'Reportes' },
-  { href: '/promotions', label: 'Promociones' },
-  { href: '/stores', label: 'Tiendas' },
-  { href: '/team', label: 'Colaboradores' },
-  { href: '/profile', label: 'Mi perfil' },
+  { href: '/reports', label: 'Reportes', roles: ['admin', 'inventory'] },
+  { href: '/promotions', label: 'Promociones', roles: ['admin'] },
+  { href: '/stores', label: 'Tiendas', roles: ['admin'] },
+  { href: '/team', label: 'Colaboradores', roles: ['admin'] },
+  { href: '/profile', label: 'Mi perfil', roles: ['admin', 'inventory', 'cashier'] },
 ];
 
 export function AppHeader() {
@@ -75,12 +75,11 @@ export function AppHeader() {
   const activeLink = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href);
   const visibleNavigation = navigation.filter(item => {
     if (!role) return false;
-    if (role === 'admin') return true;
     return item.roles?.includes(role) ?? false;
   });
 
   return <header className="border-b border-slate-200 bg-white shadow-sm shadow-slate-200/40">
-    <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-5 py-3">
+    <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:flex-nowrap sm:gap-3 sm:px-5">
       <Link href="/" className="flex shrink-0 items-center gap-2 font-bold text-slate-950">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-600 text-sm text-white">SG</span>
         <span className="hidden sm:block">SGI Inventario</span>
@@ -90,7 +89,7 @@ export function AppHeader() {
         <nav className="hidden items-center gap-1 rounded-xl bg-slate-100 p-1 text-sm font-medium lg:flex" aria-label="Navegación principal">
           {visibleNavigation.map(item => <NavigationLink key={item.href} href={item.href} label={item.label} active={activeLink(item.href)} />)}
         </nav>
-        <button type="button" className="border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 lg:hidden" aria-controls="mobile-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
+        <button type="button" className="order-3 w-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 sm:order-none sm:w-auto lg:hidden" aria-controls="mobile-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
           {menuOpen ? 'Cerrar' : 'Menú'}
         </button>
       </>}

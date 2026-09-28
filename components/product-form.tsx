@@ -46,6 +46,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
   const [image, setImage] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [barcodeNotice, setBarcodeNotice] = useState('');
   const [showCamera, setShowCamera] = useState(false);
   const barcodeInput = useRef<HTMLInputElement>(null);
@@ -62,6 +63,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
   const updateField = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFields(current => ({ ...current, [name]: value }));
+    setSuccess('');
     if (name === 'barcode') setBarcodeNotice('');
   };
 
@@ -92,11 +94,12 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
     event.preventDefault();
     setSaving(true);
     setError('');
+    setSuccess('');
 
     const values = Object.values(fields).map(value => value.trim());
-    if (values.some(value => !value) || (!editing && !image)) {
+    if (values.some(value => !value)) {
       setSaving(false);
-      setError('Completa todos los campos obligatorios e incluye una imagen del producto.');
+      setError('Completa todos los campos obligatorios.');
       return;
     }
 
@@ -154,6 +157,7 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       setImage(null);
       setBarcodeNotice('');
     }
+    setSuccess(product ? 'Producto actualizado correctamente.' : 'Producto guardado correctamente.');
     onSaved?.();
   }
 
@@ -175,12 +179,13 @@ export function ProductForm({ product, onSaved, onCancel }: Props) {
       <input name="price" required type="number" min="0" step="0.01" value={fields.price} onChange={updateField} placeholder="Precio" />
       <input name="category" required value={fields.category} onChange={updateField} placeholder="Categoría" />
       <input name="threshold" required type="number" min="0" value={fields.threshold} onChange={updateField} placeholder="Alerta bajo stock" />
-      <label className="flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm text-slate-600 sm:col-span-2">
-        <span className="mr-2">Imagen {editing ? '(opcional para reemplazar)' : '*'}</span>
-        <input name="image" required={!editing} type="file" accept="image/*" onChange={event => setImage(event.target.files?.[0] ?? null)} className="min-w-0 text-sm" />
+      <label className="flex min-h-12 flex-col items-start gap-1 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-600 sm:col-span-2 sm:flex-row sm:items-center">
+        <span className="shrink-0">Imagen (opcional)</span>
+        <input name="image" type="file" accept="image/*" onChange={event => { setImage(event.target.files?.[0] ?? null); setSuccess(''); }} className="w-full min-w-0 text-sm" />
       </label>
       <button className="bg-indigo-600 text-white disabled:opacity-50 sm:col-span-2" disabled={saving}>{saving ? 'Guardando...' : editing ? 'Guardar cambios' : 'Guardar producto'}</button>
       {error && <p role="alert" className="text-sm text-red-600 sm:col-span-2">{error}</p>}
+      {success && <p role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-800 sm:col-span-2">{success}</p>}
     </form>
   </section>;
 }

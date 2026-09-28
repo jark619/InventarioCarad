@@ -2,7 +2,7 @@
 
 ## Arranque local
 
-1. Crea un proyecto en Supabase y ejecuta las migraciones de `supabase/migrations/` en orden.
+1. Crea un proyecto en Supabase y, para una instalacion nueva, pega y ejecuta `supabase/setup.sql` en el SQL Editor. Alternativamente, ejecuta las migraciones de `supabase/migrations/` en orden (no combines ambos metodos).
 2. Copia `.env.example` a `.env.local` y completa las credenciales publicas.
 3. La migracion `010_auto_create_user_tenant.sql` crea automaticamente el tenant y el perfil administrador cuando un usuario se registra.
 4. `npm install` y `npm run dev`.
@@ -26,7 +26,15 @@ El usuario crea un producto -> el POS lo encuentra por codigo (camara o lectora 
 
 ## Usuario demo
 
-Tras crear `jark619@gmail.com` en Supabase Auth, ejecuta `supabase/migrations/003_activate_demo_user.sql` en SQL Editor. Creara la tienda demo y dara el rol Admin con el plan Business activo.
+La forma mas directa es ejecutar `supabase/create_demo_user.sql` en Supabase SQL Editor despues de `supabase/setup.sql`. El archivo crea la cuenta Auth, la identidad Email/Password y el negocio de demostracion, y al final muestra una consulta de verificacion.
+
+Para crear o restablecer el usuario administrador de demostracion de Dulceria Carad:
+
+1. Completa `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
+2. Define temporalmente la variable `DEMO_USER_PASSWORD` en la terminal.
+3. Ejecuta `npm run demo:user`.
+
+El comando confirma el correo, asigna el rol Admin y activa el plan Business. La contrasena no se guarda en el repositorio.
 
 ## Siguiente iteracion recomendada
 
