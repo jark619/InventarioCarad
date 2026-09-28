@@ -3,9 +3,10 @@
 import { FormEvent, useCallback, useState } from 'react';
 import { BarcodeScanner } from '@/components/barcode-scanner';
 import { supabase } from '@/lib/supabase/client';
+import type { Json } from '@/lib/supabase/database.types';
 import type { CartLine, Product } from '@/lib/types';
 
-type SaleItem = { product_id: string; quantity: number; unit_price: number };
+const SALE_TIMEOUT_MS = 20_000;
 
 export default function Pos() {
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -85,16 +86,49 @@ export default function Pos() {
     if (!cart.length || paying) return;
     setPaying(true);
     setNotice('Registrando venta...');
-    const createSale = supabase().rpc as unknown as (name: 'create_sale', args: { p_items: SaleItem[] }) => Promise<{ error: Error | null }>;
-    const { error } = await createSale('create_sale', { p_items: cart.map(item => ({ product_id: item.id, quantity: item.units, unit_price: item.price })) });
-    setPaying(false);
-    if (error) {
-      setNotice(`No se pudo registrar la venta: ${error.message}`);
-      return;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      const client = supabase();
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('SALE_TIMEOUT')), SALE_TIMEOUT_MS);
+      });
+      const saleOperation = async () => {
+        const { data: sessionData, error: sessionError } = await client.auth.getSession();
+        if (sessionError || !sessionData.session) {
+          throw new Error('Tu sesión venció. Inicia sesión nuevamente antes de cobrar.');
+        }
+
+        const items = cart.map(item => ({
+          product_id: item.id,
+          quantity: item.units,
+          unit_price: item.price,
+        })) as unknown as Json;
+
+        return client.rpc('create_sale', { p_items: items });
+      };
+      const { error } = await Promise.race([saleOperation(), timeout]);
+
+      if (error) throw new Error(error.message);
+
+      setCart([]);
+      setResults([]);
+      setNotice('Venta registrada correctamente.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      if (message === 'SALE_TIMEOUT') {
+        setNotice('Supabase tardó demasiado en responder. Revisa Reportes antes de intentar nuevamente para evitar duplicar la venta.');
+      } else if (message.toLowerCase().includes('fetch')) {
+        setNotice('No fue posible conectar con Supabase. Revisa tu conexión y las variables de entorno de Vercel.');
+      } else if (message.toLowerCase().includes('lock timeout')) {
+        setNotice('El inventario estaba ocupado por otra venta. Espera unos segundos y vuelve a intentarlo.');
+      } else {
+        setNotice(`No se pudo registrar la venta: ${message}`);
+      }
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      setPaying(false);
     }
-    setCart([]);
-    setResults([]);
-    setNotice('Venta registrada correctamente.');
   }
 
   const total = cart.reduce((sum, item) => sum + item.price * item.units, 0);

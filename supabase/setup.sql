@@ -245,7 +245,11 @@ create trigger on_auth_user_created
 
 create or replace function public.create_sale(p_items jsonb)
 returns uuid
-language plpgsql security definer set search_path = public
+language plpgsql
+security definer
+set search_path = public
+set lock_timeout = '5s'
+set statement_timeout = '15s'
 as $$
 declare
   v_tenant uuid := public.current_tenant_id();
@@ -436,4 +440,3 @@ left join public.sale_items si on si.product_id = p.id
 group by p.tenant_id, p.id, p.name, p.quantity, p.low_stock_threshold;
 
 commit;
-
