@@ -7,6 +7,7 @@ import type { Json } from '@/lib/supabase/database.types';
 import type { CartLine, Product } from '@/lib/types';
 
 const SALE_TIMEOUT_MS = 20_000;
+type PaymentMethod = 'cash' | 'card';
 
 export default function Pos() {
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -16,6 +17,7 @@ export default function Pos() {
   const [notice, setNotice] = useState('');
   const [searching, setSearching] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
   const addProduct = useCallback((product: Product) => {
     if (product.quantity < 1) {
@@ -106,13 +108,17 @@ export default function Pos() {
           unit_price: item.price,
         })) as unknown as Json;
 
-        const saleResult = await client.rpc('create_sale', { p_items: items });
+        const saleResult = await client.rpc('create_sale', {
+          p_items: items,
+          p_payment_method: paymentMethod,
+        });
         if (saleResult.error) return saleResult;
 
         saleRegistered = true;
         const saleId = saleResult.data;
         setCart([]);
         setResults([]);
+        setPaymentMethod('cash');
         setNotice('Venta registrada. Verificando salida de inventario...');
 
         const [savedSale, updatedProducts] = await Promise.all([
@@ -182,6 +188,18 @@ export default function Pos() {
       <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold">Ticket</h2><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{cart.reduce((sum, item) => sum + item.units, 0)} artículos</span></div>
       {cart.length ? <div className="mt-3 divide-y divide-slate-100">{cart.map(item => <article className="py-4" key={item.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-medium">{item.name}</p><p className="text-xs text-slate-500">${Number(item.price).toFixed(2)} cada uno</p></div><strong className="shrink-0">${(item.units * item.price).toFixed(2)}</strong></div><div className="mt-3 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><button type="button" onClick={() => changeUnits(item, -1)} aria-label={`Quitar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-slate-100 p-0 text-lg">−</button><span className="min-w-8 text-center font-semibold">{item.units}</span><button type="button" onClick={() => changeUnits(item, 1)} aria-label={`Agregar una unidad de ${item.name}`} className="grid h-10 min-h-0 w-10 place-items-center bg-blue-100 p-0 text-lg text-blue-700">+</button></div><button type="button" onClick={() => setCart(current => current.filter(product => product.id !== item.id))} className="min-h-10 bg-transparent px-2 text-sm text-rose-700">Quitar</button></div></article>)}</div> : <p className="mt-4 rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-500">Escanea o busca productos para comenzar la venta.</p>}
       <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xl font-bold"><span>Total</span><span>${total.toFixed(2)}</span></div>
+      <fieldset className="mt-5" disabled={paying}>
+        <legend className="mb-2 text-sm font-semibold text-slate-700">Método de pago</legend>
+        <div className="grid grid-cols-2 rounded-xl bg-slate-100 p-1" role="group" aria-label="Método de pago">
+          {([
+            { value: 'cash', label: 'Efectivo' },
+            { value: 'card', label: 'Tarjeta' },
+          ] as const).map(option => <label key={option.value} className={`cursor-pointer rounded-lg px-3 py-3 text-center text-sm font-semibold transition focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 ${paymentMethod === option.value ? 'bg-white text-blue-700 shadow-sm ring-1 ring-slate-200' : 'text-slate-600 hover:text-slate-900'} ${paying ? 'cursor-not-allowed opacity-60' : ''}`}>
+            <input type="radio" name="payment-method" value={option.value} checked={paymentMethod === option.value} onChange={() => setPaymentMethod(option.value)} className="sr-only" />
+            {option.label}
+          </label>)}
+        </div>
+      </fieldset>
       <button type="button" onClick={checkout} disabled={!cart.length || paying} className="mt-4 min-h-14 w-full bg-emerald-600 text-lg text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">{paying ? 'Registrando pago...' : 'Pagar'}</button>
     </section>
   </main>;

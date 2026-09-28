@@ -8,6 +8,7 @@ begin;
 create extension if not exists "uuid-ossp";
 
 create type public.app_role as enum ('admin', 'inventory', 'cashier');
+create type public.payment_method as enum ('cash', 'card');
 
 create table public.tenants (
   id uuid primary key default uuid_generate_v4(),
@@ -53,6 +54,7 @@ create table public.sales (
   tenant_id uuid not null references public.tenants(id),
   cashier_id uuid not null references auth.users(id),
   total numeric(12,2) not null check (total >= 0),
+  payment_method public.payment_method not null default 'cash',
   created_at timestamptz not null default now()
 );
 
@@ -296,6 +298,36 @@ begin
 end;
 $$;
 
+create or replace function public.create_sale(
+  p_items jsonb,
+  p_payment_method public.payment_method
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+set lock_timeout = '5s'
+set statement_timeout = '15s'
+as $$
+declare
+  v_sale uuid;
+begin
+  v_sale := public.create_sale(p_items);
+
+  update public.sales
+    set payment_method = p_payment_method
+    where id = v_sale
+      and tenant_id = public.current_tenant_id()
+      and cashier_id = auth.uid();
+
+  if not found then
+    raise exception 'No se pudo asignar el metodo de pago';
+  end if;
+
+  return v_sale;
+end;
+$$;
+
 create or replace function public.create_store(p_name text)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -350,6 +382,7 @@ end;
 $$;
 
 grant execute on function public.create_sale(jsonb) to authenticated;
+grant execute on function public.create_sale(jsonb, public.payment_method) to authenticated;
 grant execute on function public.create_store(text) to authenticated;
 grant execute on function public.update_my_profile(text) to authenticated;
 grant execute on function public.admin_update_collaborator(uuid, text, public.app_role) to authenticated;

@@ -22,9 +22,9 @@ export type Database = {
         Relationships: [];
       };
       sales: {
-        Row: { id: string; tenant_id: string; cashier_id: string; total: number; created_at: string };
-        Insert: { id?: string; tenant_id: string; cashier_id: string; total: number; created_at?: string };
-        Update: { id?: string; tenant_id?: string; cashier_id?: string; total?: number; created_at?: string };
+        Row: { id: string; tenant_id: string; cashier_id: string; total: number; payment_method: Database['public']['Enums']['payment_method']; created_at: string };
+        Insert: { id?: string; tenant_id: string; cashier_id: string; total: number; payment_method?: Database['public']['Enums']['payment_method']; created_at?: string };
+        Update: { id?: string; tenant_id?: string; cashier_id?: string; total?: number; payment_method?: Database['public']['Enums']['payment_method']; created_at?: string };
         Relationships: [];
       };
       sale_items: {
@@ -56,12 +56,12 @@ export type Database = {
       sales_report: { Row: { tenant_id: string; id: string; name: string; quantity: number; low_stock_threshold: number; units_sold: number }; Relationships: [] };
     };
     Functions: {
-      create_sale: { Args: { p_items: Json }; Returns: string };
+      create_sale: { Args: { p_items: Json; p_payment_method: Database['public']['Enums']['payment_method'] }; Returns: string };
       create_store: { Args: { p_name: string }; Returns: string };
       update_my_profile: { Args: { p_full_name: string }; Returns: undefined };
       admin_update_collaborator: { Args: { p_id: string; p_full_name: string; p_role: Database['public']['Enums']['app_role'] }; Returns: undefined };
     };
-    Enums: { app_role: 'admin' | 'inventory' | 'cashier' };
+    Enums: { app_role: 'admin' | 'inventory' | 'cashier'; payment_method: 'cash' | 'card' };
     CompositeTypes: Record<string, never>;
   };
 };

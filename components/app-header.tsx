@@ -13,7 +13,7 @@ type NavigationItem = { href: string; label: string; roles?: Role[] };
 const navigation: NavigationItem[] = [
   { href: '/', label: 'Inicio', roles: ['admin', 'inventory', 'cashier'] },
   { href: '/inventory', label: 'Inventario', roles: ['admin', 'inventory'] },
-  { href: '/pos', label: 'Abrir caja', roles: ['admin', 'cashier'] },
+  { href: '/pos', label: 'Caja', roles: ['admin', 'cashier'] },
   { href: '/reports', label: 'Reportes', roles: ['admin', 'inventory'] },
   { href: '/promotions', label: 'Promociones', roles: ['admin'] },
   { href: '/stores', label: 'Tiendas', roles: ['admin'] },
